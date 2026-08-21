@@ -1,0 +1,13 @@
+.git
+.gitignore
+.github
+.gitlab-ci.yml
+Dockerfile*
+.dockerignore
+*.md
+.env
+.env.*
+*.key
+*.pem
+tests/
+k8s/

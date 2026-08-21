@@ -1,0 +1,96 @@
+# ---------------------------------------------------------------------------
+# Boutique — pile complète en local, AVANT Kubernetes.
+#
+# Objectif pédagogique : faire tourner l'application dans son ensemble avec un
+# outil que vous connaissez, pour que le module 04 ne mélange pas deux
+# difficultés (« l'application ne marche pas » et « Kubernetes ne marche pas »).
+#
+#   docker compose up --build
+#   curl localhost:8080/api/produits
+#   docker compose down -v
+# ---------------------------------------------------------------------------
+
+services:
+
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: boutique
+      POSTGRES_PASSWORD: boutique
+      POSTGRES_DB: boutique
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U boutique"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "60", "1", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build:
+      context: ./api
+      args:
+        VERSION: "1.0.0-local"
+        COMMIT: "local"
+    environment:
+      PG_DSN: "postgres://boutique:boutique@postgres:5432/boutique?sslmode=disable"
+      REDIS_ADDR: "redis:6379"
+      APP_ENV: "local"
+      MESSAGE_ACCUEIL: "Boutique — environnement local"
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis:    { condition: service_healthy }
+    # Reproduit ce que Kubernetes imposera au module 08 : si l'application ne
+    # tourne pas ici avec ces contraintes, elle ne tournera pas là-bas.
+    user: "65532:65532"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+
+  worker:
+    build:
+      context: ./worker
+      args:
+        VERSION: "1.0.0-local"
+    environment:
+      REDIS_ADDR: "redis:6379"
+      DUREE_TRAITEMENT: "250"
+    depends_on:
+      redis: { condition: service_healthy }
+    # Deux instances : le worker doit supporter la concurrence dès le départ,
+    # sinon le scaling du module 09 révélera des bugs tardivement.
+    deploy:
+      replicas: 2
+    user: "65532:65532"
+    read_only: true
+    cap_drop: [ALL]
+
+  front:
+    build:
+      context: ./front
+    environment:
+      API_UPSTREAM: "api:8080"
+    ports:
+      - "8080:8080"
+    depends_on:
+      - api
+    user: "101:101"
+    cap_drop: [ALL]
+    # NGINX écrit ses fichiers temporaires et son pid : sans ce tmpfs,
+    # read_only casserait le démarrage. C'est exactement le montage emptyDir
+    # que vous ajouterez au module 08.
+    read_only: true
+    tmpfs:
+      - /tmp
+
+volumes:
+  pgdata:

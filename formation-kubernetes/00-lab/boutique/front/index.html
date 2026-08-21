@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Boutique — formation Kubernetes TechLedger</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body {
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      max-width: 60rem; margin: 0 auto; padding: 2rem 1rem; line-height: 1.6;
+    }
+    header { border-bottom: 2px solid currentColor; padding-bottom: .75rem; margin-bottom: 1.5rem; }
+    h1 { margin: 0 0 .25rem; font-size: 1.6rem; }
+    .meta { font-size: .85rem; opacity: .7; }
+    table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+    th, td { text-align: left; padding: .5rem .75rem; border-bottom: 1px solid rgba(128,128,128,.3); }
+    th { font-weight: 600; }
+    td.num { text-align: right; font-variant-numeric: tabular-nums; }
+    button { padding: .4rem .9rem; cursor: pointer; border-radius: .3rem;
+             border: 1px solid rgba(128,128,128,.5); background: transparent; color: inherit; }
+    button:hover { background: rgba(128,128,128,.15); }
+    #etat { padding: .6rem .9rem; border-radius: .3rem; margin: 1rem 0;
+            border: 1px solid rgba(128,128,128,.4); font-size: .9rem; }
+    .ok { border-color: #2a7 !important; }
+    .ko { border-color: #c33 !important; }
+    footer { margin-top: 2rem; font-size: .8rem; opacity: .6; }
+    code { background: rgba(128,128,128,.15); padding: .1rem .3rem; border-radius: .2rem; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Boutique</h1>
+    <div class="meta">
+      Application fil rouge — formation Kubernetes TechLedger ·
+      servie par le Pod <strong id="pod">…</strong>
+    </div>
+  </header>
+
+  <div id="etat">Interrogation de l'API…</div>
+
+  <h2>Catalogue</h2>
+  <table>
+    <thead>
+      <tr><th>#</th><th>Produit</th><th class="num">Prix</th><th class="num">Stock</th><th></th></tr>
+    </thead>
+    <tbody id="produits">
+      <tr><td colspan="5">Chargement…</td></tr>
+    </tbody>
+  </table>
+
+  <p>
+    <button onclick="charger()">Rafraîchir</button>
+    <span id="compteur" style="margin-left:1rem; font-size:.85rem; opacity:.7"></span>
+  </p>
+
+  <footer>
+    Le front appelle <code>/api/*</code> sur la même origine : c'est NGINX qui
+    relaie vers le Service <code>boutique-api</code>. Aucune URL d'API n'est
+    codée en dur — voir <code>nginx.conf</code>.
+  </footer>
+
+<script>
+let commandesEnvoyees = 0;
+
+async function charger() {
+  const etat = document.getElementById('etat');
+  try {
+    const r = await fetch('/api/produits');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const produits = await r.json();
+
+    document.getElementById('produits').innerHTML = produits.map(p => `
+      <tr>
+        <td>${p.id}</td>
+        <td>${p.nom}</td>
+        <td class="num">${p.prix.toFixed(2)} €</td>
+        <td class="num">${p.stock}</td>
+        <td><button onclick="commander(${p.id})">Commander</button></td>
+      </tr>`).join('');
+
+    etat.textContent = `API joignable — ${produits.length} produits.`;
+    etat.className = 'ok';
+  } catch (e) {
+    document.getElementById('produits').innerHTML =
+      '<tr><td colspan="5">Catalogue indisponible.</td></tr>';
+    etat.textContent = 'API injoignable : ' + e.message +
+      ' — vérifiez le Service boutique-api et la readiness du Pod.';
+    etat.className = 'ko';
+  }
+
+  try {
+    const info = await (await fetch('/api/')).json();
+    document.getElementById('pod').textContent = info.pod || '?';
+  } catch { /* sans importance */ }
+}
+
+async function commander(id) {
+  try {
+    const r = await fetch('/api/commandes', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({produit_id: id, qte: 1})
+    });
+    commandesEnvoyees++;
+    document.getElementById('compteur').textContent =
+      `${commandesEnvoyees} commande(s) empilée(s) — statut ${r.status}`;
+  } catch (e) {
+    document.getElementById('compteur').textContent = 'Échec : ' + e.message;
+  }
+}
+
+charger();
+setInterval(charger, 10000);
+</script>
+</body>
+</html>

@@ -1,0 +1,129 @@
+#cloud-config
+# ---------------------------------------------------------------------------
+# user-data cloud-init pour un nœud Kubernetes v1.36 (Ubuntu 24.04 cloud).
+#
+# À coller dans le champ "user data" de la plateforme cloud CETIC, ou à passer
+# en --user-data sur n'importe quel hyperviseur supportant cloud-init.
+#
+# Pensez à personnaliser AVANT usage :
+#   - hostname
+#   - ssh_authorized_keys  (votre clé publique, sinon la machine sera inaccessible)
+#   - la section write_files/netplan si vous n'avez pas de DHCP à bail fixe
+# ---------------------------------------------------------------------------
+
+hostname: k8s-cp-01
+fqdn: k8s-cp-01.lab.techledger.io
+prefer_fqdn_over_hostname: false
+manage_etc_hosts: true
+
+users:
+  - name: adm-k8s
+    groups: [sudo, adm]
+    shell: /bin/bash
+    sudo: "ALL=(ALL) NOPASSWD:ALL"
+    lock_passwd: true
+    ssh_authorized_keys:
+      - "ssh-ed25519 AAAA_REMPLACEZ_PAR_VOTRE_CLE_PUBLIQUE vous@poste"
+
+package_update: true
+package_upgrade: false          # volontaire : on fige, on n'upgrade pas au boot
+
+packages:
+  - apt-transport-https
+  - ca-certificates
+  - curl
+  - gnupg
+  - jq
+  - vim
+  - git
+  - wget
+  - socat            # requis par kubeadm (port-forward)
+  - conntrack        # requis par kube-proxy
+  - ethtool
+  - ipvsadm          # mode IPVS de kube-proxy
+  - nfs-common       # module 07
+  - open-iscsi       # Longhorn, module 07
+
+write_files:
+  # -- Modules noyau ---------------------------------------------------------
+  - path: /etc/modules-load.d/kubernetes.conf
+    content: |
+      overlay
+      br_netfilter
+
+  # -- Paramètres réseau et limites ------------------------------------------
+  - path: /etc/sysctl.d/99-kubernetes.conf
+    content: |
+      net.ipv4.ip_forward                 = 1
+      net.ipv6.conf.all.forwarding        = 1
+      net.bridge.bridge-nf-call-iptables  = 1
+      net.bridge.bridge-nf-call-ip6tables = 1
+      fs.inotify.max_user_instances       = 8192
+      fs.inotify.max_user_watches         = 524288
+      fs.file-max                         = 2097152
+      net.netfilter.nf_conntrack_max      = 1048576
+      vm.max_map_count                    = 262144
+
+  # -- Dépôt Kubernetes ------------------------------------------------------
+  - path: /etc/apt/sources.list.d/kubernetes.list
+    content: |
+      deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.36/deb/ /
+
+  # -- Désactivation du swap au boot ----------------------------------------
+  - path: /etc/systemd/system/disable-swap.service
+    content: |
+      [Unit]
+      Description=Desactive le swap pour le kubelet
+      Before=kubelet.service
+      [Service]
+      Type=oneshot
+      ExecStart=/sbin/swapoff -a
+      RemainAfterExit=yes
+      [Install]
+      WantedBy=multi-user.target
+
+runcmd:
+  # -- 1. Swap ---------------------------------------------------------------
+  - swapoff -a
+  - sed -i '/[[:space:]]swap[[:space:]]/s/^/#/' /etc/fstab
+  - systemctl enable disable-swap.service
+
+  # -- 2. Modules et sysctl --------------------------------------------------
+  - modprobe overlay
+  - modprobe br_netfilter
+  - sysctl --system
+
+  # -- 3. containerd ---------------------------------------------------------
+  - install -m 0755 -d /etc/apt/keyrings
+  - curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+  - chmod a+r /etc/apt/keyrings/docker.gpg
+  - echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu noble stable" > /etc/apt/sources.list.d/docker.list
+  - apt-get update -qq
+  - apt-get install -y -qq containerd.io
+  - mkdir -p /etc/containerd
+  - containerd config default > /etc/containerd/config.toml
+  # Le kubelet et containerd doivent utiliser le MÊME pilote de cgroup (systemd).
+  - sed -i 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/config.toml
+  - sed -i 's#sandbox_image = .*#sandbox_image = "registry.k8s.io/pause:3.10"#' /etc/containerd/config.toml
+  - systemctl restart containerd
+  - systemctl enable containerd
+
+  # -- 4. Binaires Kubernetes, version figée --------------------------------
+  - curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.36/deb/Release.key | gpg --dearmor --yes -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+  - apt-get update -qq
+  - apt-get install -y -qq kubelet=1.36.1-1.1 kubeadm=1.36.1-1.1 kubectl=1.36.1-1.1
+  - apt-mark hold kubelet kubeadm kubectl
+  - systemctl enable kubelet
+
+  # -- 5. Confort ------------------------------------------------------------
+  - echo 'source <(kubectl completion bash)' >> /home/adm-k8s/.bashrc
+  - echo 'alias k=kubectl' >> /home/adm-k8s/.bashrc
+  - echo 'complete -o default -F __start_kubectl k' >> /home/adm-k8s/.bashrc
+  - echo 'export KUBECONFIG=$HOME/.kube/config' >> /home/adm-k8s/.bashrc
+
+  # -- 6. Marqueur de fin ----------------------------------------------------
+  # Attendez ce fichier avant de lancer kubeadm : cloud-init tourne encore
+  # plusieurs dizaines de secondes après que SSH réponde.
+  - touch /var/lib/cloud/instance/PRET_POUR_KUBEADM
+
+final_message: "Noeud pret apres $UPTIME s. Lancez verifier-noeud.sh."
