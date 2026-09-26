@@ -1,0 +1,31 @@
+# Boutique, le fil rouge, sur chaque managed cluster : les regles federees
+# du module 05 y trouvent les memes namespaces et les memes workloads.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: boutique
+  namespace: argocd
+spec:
+  goTemplate: true
+  generators:
+    - clusters:
+        selector:
+          matchLabels:
+            neuvector.techledger.io/role: managed
+  template:
+    metadata:
+      finalizers:
+        - resources-finalizer.argocd.argoproj.io
+      name: 'boutique-{{ .name }}'
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/tech-ledger/public-repo.git
+        targetRevision: main
+        path: formation-neuvector/boutique
+      destination:
+        server: '{{ .server }}'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true

@@ -1,0 +1,260 @@
+# Boutique, le fil rouge des formations TechLedger, reparti sur 3 namespaces.
+#
+#   bq-front    le front nginx (l Ingress reste propre a nv-01)
+#   bq-metier   l API, le worker et la migration du schema
+#   bq-donnees  PostgreSQL et le cache Redis
+#
+# Les appels qui traversent un namespace portent un nom PLEINEMENT QUALIFIE.
+# Un nom court ne resout que dans le namespace du pod qui appelle, et l erreur
+# ne dit pas cela : elle dit « no such host ».
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: bq-front
+  labels: { atelier: boutique }
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: bq-metier
+  labels: { atelier: boutique }
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: bq-donnees
+  labels: { atelier: boutique }
+---
+# ------------------------------------------------------------ bq-donnees
+apiVersion: v1
+kind: ServiceAccount
+metadata: { name: postgres, namespace: bq-donnees }
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata: { name: redis, namespace: bq-donnees }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: bq-donnees
+spec:
+  selector: { app: postgres }
+  ports: [{ name: tcp-pg, port: 5432, targetPort: 5432 }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: bq-donnees
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: postgres } }
+  template:
+    metadata:
+      labels: { app: postgres }
+    spec:
+      serviceAccountName: postgres
+      containers:
+        - name: postgres
+          image: postgres:17-alpine
+          env:
+            - { name: POSTGRES_USER,     value: boutique }
+            - { name: POSTGRES_PASSWORD, value: boutique }
+            - { name: POSTGRES_DB,       value: boutique }
+            - { name: PGDATA,            value: /var/lib/postgresql/data/pgdata }
+          ports: [{ containerPort: 5432 }]
+          resources:
+            requests: { cpu: "50m", memory: "128Mi" }
+            limits:   { memory: "256Mi" }
+          volumeMounts: [{ name: donnees, mountPath: /var/lib/postgresql/data }]
+      volumes:
+        - name: donnees
+          emptyDir: {}
+---
+# Le Service s appelle `redis-cache` et non `redis` : c est le nom que le
+# worker porte dans REDIS_ADDR, et celui qui apparait dans les logs quand
+# la resolution echoue.
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-cache
+  namespace: bq-donnees
+spec:
+  selector: { app: redis }
+  ports: [{ name: tcp-redis, port: 6379, targetPort: 6379 }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis-cache
+  namespace: bq-donnees
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: redis } }
+  template:
+    metadata:
+      labels: { app: redis }
+    spec:
+      serviceAccountName: redis
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          args: ["--save", "", "--appendonly", "no"]
+          ports: [{ containerPort: 6379 }]
+          resources:
+            requests: { cpu: "20m", memory: "32Mi" }
+            limits:   { memory: "96Mi" }
+---
+# ------------------------------------------------------------ bq-metier
+apiVersion: v1
+kind: ServiceAccount
+metadata: { name: boutique-api, namespace: bq-metier }
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata: { name: boutique-worker, namespace: bq-metier }
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: boutique-migration
+  namespace: bq-metier
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: Never
+      serviceAccountName: boutique-api
+      initContainers:
+        - name: attendre-postgres
+          image: busybox:1.37
+          command: ["sh","-c","for i in $(seq 1 60); do nc -z postgres.bq-donnees.svc.cluster.local 5432 && exit 0; sleep 2; done; exit 1"]
+          resources:
+            requests: { cpu: "10m", memory: "16Mi" }
+      containers:
+        - name: migration
+          image: ghcr.io/ibra-coul/boutique-api:1.0.0
+          command: ["/api", "migrate"]
+          env:
+            - { name: PG_DSN,     value: "postgres://boutique:boutique@postgres.bq-donnees.svc.cluster.local:5432/boutique?sslmode=disable" }
+            - { name: REDIS_ADDR, value: "redis-cache.bq-donnees.svc.cluster.local:6379" }
+          resources:
+            requests: { cpu: "50m", memory: "64Mi" }
+            limits:   { memory: "192Mi" }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: boutique-api
+  namespace: bq-metier
+spec:
+  selector: { app: boutique-api }
+  ports: [{ name: http, port: 8080, targetPort: http }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: boutique-api
+  namespace: bq-metier
+spec:
+  replicas: 3
+  selector: { matchLabels: { app: boutique-api } }
+  template:
+    metadata:
+      labels: { app: boutique-api, version: v1 }
+    spec:
+      serviceAccountName: boutique-api
+      containers:
+        - name: api
+          image: ghcr.io/ibra-coul/boutique-api:1.0.0
+          ports: [{ name: http, containerPort: 8080 }]
+          env:
+            - { name: PG_DSN,          value: "postgres://boutique:boutique@postgres.bq-donnees.svc.cluster.local:5432/boutique?sslmode=disable" }
+            - { name: REDIS_ADDR,      value: "redis-cache.bq-donnees.svc.cluster.local:6379" }
+            - { name: APP_ENV,         value: "lab" }
+            - { name: MESSAGE_ACCUEIL, value: "Boutique" }
+          resources:
+            requests: { cpu: "50m", memory: "64Mi" }
+            limits:   { memory: "192Mi" }
+          readinessProbe:
+            httpGet: { path: /readyz, port: http }
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 10
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: boutique-worker
+  namespace: bq-metier
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: boutique-worker } }
+  template:
+    metadata:
+      labels: { app: boutique-worker }
+    spec:
+      serviceAccountName: boutique-worker
+      containers:
+        - name: worker
+          image: ghcr.io/ibra-coul/boutique-worker:1.0.0
+          ports: [{ name: http, containerPort: 8080 }]
+          env:
+            - { name: REDIS_ADDR,       value: "redis-cache.bq-donnees.svc.cluster.local:6379" }
+            - { name: DUREE_TRAITEMENT, value: "250" }
+          resources:
+            requests: { cpu: "30m", memory: "32Mi" }
+            limits:   { memory: "128Mi" }
+          readinessProbe:
+            httpGet: { path: /readyz, port: http }
+            periodSeconds: 5
+---
+# ------------------------------------------------------------ bq-front
+apiVersion: v1
+kind: ServiceAccount
+metadata: { name: boutique-front, namespace: bq-front }
+---
+# Le seul point d entree de l application, expose par l Ingress en fin de fichier.
+apiVersion: v1
+kind: Service
+metadata:
+  name: boutique-front
+  namespace: bq-front
+spec:
+  type: ClusterIP
+  selector: { app: boutique-front }
+  ports: [{ name: http, port: 80, targetPort: http }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: boutique-front
+  namespace: bq-front
+spec:
+  replicas: 2
+  selector: { matchLabels: { app: boutique-front } }
+  template:
+    metadata:
+      labels: { app: boutique-front }
+    spec:
+      serviceAccountName: boutique-front
+      containers:
+        - name: front
+          image: ghcr.io/ibra-coul/boutique-front:1.0.0
+          ports: [{ name: http, containerPort: 8080 }]
+          env:
+            - { name: API_UPSTREAM, value: "boutique-api.bq-metier.svc.cluster.local:8080" }
+          resources:
+            requests: { cpu: "20m", memory: "32Mi" }
+            limits:   { memory: "96Mi" }
+          readinessProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 5
+          volumeMounts: [{ name: tmp, mountPath: /tmp }]
+      volumes:
+        - name: tmp
+          emptyDir: {}
