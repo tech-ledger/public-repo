@@ -13,6 +13,9 @@ spec:
             neuvector.techledger.io/role: managed
   template:
     metadata:
+      # retirer le cluster du selecteur desinstalle ce que l'application avait pose
+      finalizers:
+        - resources-finalizer.argocd.argoproj.io
       name: 'neuvector-{{ .name }}'
     spec:
       project: default
