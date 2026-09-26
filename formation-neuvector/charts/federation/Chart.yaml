@@ -1,0 +1,4 @@
+apiVersion: v2
+name: federation
+description: Le Secret qui fait rejoindre la federation NeuVector, lu dans Vault
+version: 1.0.0

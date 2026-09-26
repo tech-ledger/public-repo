@@ -1,0 +1,14 @@
+# Sous Argo CD, un rendu doit etre stable : les certificats tires au hasard a
+# chaque rendu donneraient une difference permanente.
+autoGenerateCert: false
+
+controller:
+  replicas: 3
+  federation:
+    managedsvc:
+      type: NodePort
+      nodePort: 30443
+
+cve:
+  scanner:
+    replicas: 2

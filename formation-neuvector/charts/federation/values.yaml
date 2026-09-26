@@ -1,0 +1,6 @@
+clusterName: ""
+managedServer: ""
+managedPort: 30443
+primaryServer: fed.lab.techledger.io
+primaryPort: 443
+vaultServer: https://vault.lab.techledger.io

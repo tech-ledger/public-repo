@@ -1,0 +1,53 @@
+# NeuVector sur chaque cluster de role managed, qui rejoint seul la federation.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: neuvector
+  namespace: argocd
+spec:
+  goTemplate: true
+  generators:
+    - clusters:
+        selector:
+          matchLabels:
+            neuvector.techledger.io/role: managed
+  template:
+    metadata:
+      name: 'neuvector-{{ .name }}'
+    spec:
+      project: default
+      sources:
+        # 1. le Secret de federation, lu dans Vault (sync wave -1)
+        - repoURL: https://github.com/tech-ledger/public-repo.git
+          targetRevision: main
+          path: formation-neuvector/charts/federation
+          helm:
+            valuesObject:
+              clusterName: '{{ .name }}'
+              managedServer: '{{ .name }}.lab.techledger.io'
+        # 2. NeuVector lui-meme (sync wave 0)
+        - repoURL: https://neuvector.github.io/neuvector-helm/
+          chart: core
+          targetRevision: 2.11.2
+          helm:
+            releaseName: neuvector
+            valueFiles:
+              - $depot/formation-neuvector/values/neuvector-managed.yaml
+        - repoURL: https://github.com/tech-ledger/public-repo.git
+          targetRevision: main
+          ref: depot
+      destination:
+        server: '{{ .server }}'
+        namespace: neuvector
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+        retry:
+          limit: 10
+          backoff:
+            duration: 30s
+            factor: 2
+            maxDuration: 5m
