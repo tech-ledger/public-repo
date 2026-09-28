@@ -1,0 +1,13 @@
+# composants/monitor : la recette alerte sans bloquer
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+patches:
+- target:
+    kind: NvSecurityRule
+  patch: |-
+    - op: replace
+      path: /spec/target/policymode
+      value: Monitor
+    - op: replace
+      path: /spec/process_profile/mode
+      value: Monitor

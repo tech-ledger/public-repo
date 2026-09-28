@@ -1,0 +1,8 @@
+# nv-hml : la recette, un cluster CCKS, en Monitor
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- ../base
+components:
+- ../composants/ccks
+- ../composants/monitor

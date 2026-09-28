@@ -1,0 +1,31 @@
+# La politique NeuVector de Boutique sur chaque managed cluster : le dossier
+# politique/<nom du cluster> choisit la variante (CCKS, Monitor ou Protect).
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: politique
+  namespace: argocd
+spec:
+  goTemplate: true
+  generators:
+    - clusters:
+        selector:
+          matchLabels:
+            neuvector.techledger.io/role: managed
+  template:
+    metadata:
+      finalizers:
+        - resources-finalizer.argocd.argoproj.io
+      name: 'politique-{{ .name }}'
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/tech-ledger/public-repo.git
+        targetRevision: main
+        path: 'formation-neuvector/politique/{{ .name }}'
+      destination:
+        server: '{{ .server }}'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true

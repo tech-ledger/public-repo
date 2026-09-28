@@ -1,0 +1,7 @@
+# nv-prod : la production, un cluster CCKS, en Protect comme la politique exportée
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- ../base
+components:
+- ../composants/ccks

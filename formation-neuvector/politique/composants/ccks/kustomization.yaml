@@ -1,0 +1,27 @@
+# composants/ccks : ce qui change sur un cluster CCKS, où le DNS est coredns et l'entrée l'ingress de Cilium
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+patches:
+- target:
+    kind: NvSecurityRule
+    name: nv.boutique-(front|api|worker|migration).bq-.*|nv.postgres.bq-donnees
+  patch: |-
+    - op: replace
+      path: /spec/egress/0/selector
+      value:
+        name: nv.coredns.kube-system
+        criteria:
+        - key: service
+          op: "="
+          value: coredns.kube-system
+        - key: domain
+          op: "="
+          value: kube-system
+- target:
+    kind: NvSecurityRule
+    name: nv.boutique-front.bq-front
+  patch: |-
+    - op: replace
+      path: /spec/ingress/1/selector
+      value:
+        name: Workload:ingress
