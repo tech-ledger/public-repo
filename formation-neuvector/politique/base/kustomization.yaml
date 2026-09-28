@@ -1,4 +1,4 @@
-# la politique de Boutique, commune à tous les clusters
+# la politique de Boutique, exportée de nv-01 et relue
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:

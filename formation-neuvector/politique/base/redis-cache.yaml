@@ -1,46 +1,83 @@
-# redis-cache.yaml : la politique de nv.redis-cache.bq-donnees, exportée de nv-01 puis relue
-apiVersion: neuvector.com/v1
-kind: NvSecurityRule
-metadata:
-  name: nv.redis-cache.bq-donnees
-  namespace: bq-donnees
-spec:
-  dlp:
-    settings: []
-    status: true
-  egress: []
-  file: []
-  ingress: []
-  process:
-  - action: allow
-    allow_update: false
-    name: pause
-    path: /pause
-  - action: allow
-    allow_update: false
-    name: redis-server
-    path: /usr/local/bin/redis-server
-  process_profile:
-    baseline: zero-drift
-    mode: Protect
-  response: null
-  target:
-    policymode: Protect
-    selector:
-      comment: ""
-      criteria:
-      - key: service
-        op: =
-        value: redis-cache.bq-donnees
-      - key: domain
-        op: =
-        value: bq-donnees
-      grp_band_width: 0
-      grp_sess_cur: 0
-      grp_sess_rate: 0
-      mon_metric: false
-      name: nv.redis-cache.bq-donnees
-      original_name: ""
-  waf:
-    settings: []
-    status: true
+apiVersion: v1
+items:
+- apiVersion: neuvector.com/v1
+  kind: NvSecurityRule
+  metadata:
+    name: nv.redis-cache.bq-donnees
+    namespace: bq-donnees
+  spec:
+    dlp:
+      settings: []
+      status: true
+    egress: []
+    file: []
+    ingress:
+    - action: allow
+      applications:
+      - Redis
+      name: nv.redis-cache.bq-donnees-ingress-0
+      ports: any
+      priority: 0
+      selector:
+        comment: ""
+        criteria:
+        - key: service
+          op: =
+          value: boutique-worker.bq-metier
+        - key: domain
+          op: =
+          value: bq-metier
+        name: nv.boutique-worker.bq-metier
+        original_name: ""
+    - action: allow
+      applications:
+      - Redis
+      name: nv.redis-cache.bq-donnees-ingress-1
+      ports: any
+      priority: 0
+      selector:
+        comment: ""
+        criteria:
+        - key: domain
+          op: =
+          value: bq-metier
+        - key: service
+          op: =
+          value: boutique-api.bq-metier
+        name: nv.boutique-api.bq-metier
+        original_name: ""
+    process:
+    - action: allow
+      allow_update: false
+      name: pause
+      path: /pause
+    - action: allow
+      allow_update: false
+      name: redis-server
+      path: /usr/local/bin/redis-server
+    process_profile:
+      baseline: zero-drift
+      mode: Protect
+    response: null
+    target:
+      policymode: Protect
+      selector:
+        comment: ""
+        criteria:
+        - key: service
+          op: =
+          value: redis-cache.bq-donnees
+        - key: domain
+          op: =
+          value: bq-donnees
+        grp_band_width: 0
+        grp_sess_cur: 0
+        grp_sess_rate: 0
+        mon_metric: false
+        name: nv.redis-cache.bq-donnees
+        original_name: ""
+    waf:
+      settings: []
+      status: true
+kind: List
+metadata: {}
