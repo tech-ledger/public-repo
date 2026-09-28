@@ -90,23 +90,6 @@ items:
           value: boutique-front.bq-front
         name: nv.boutique-front.bq-front
         original_name: ""
-    - action: allow
-      applications:
-      - HTTP
-      name: nv.boutique-api.bq-metier-ingress-2
-      ports: any
-      priority: 0
-      selector:
-        comment: ""
-        criteria:
-        - key: service
-          op: =
-          value: depannage.bq-metier
-        - key: domain
-          op: =
-          value: bq-metier
-        name: nv.depannage.bq-metier
-        original_name: ""
     process:
     - action: allow
       allow_update: false
