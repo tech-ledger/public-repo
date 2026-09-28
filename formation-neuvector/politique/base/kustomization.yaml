@@ -1,0 +1,10 @@
+# la politique de Boutique, commune à tous les clusters
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- boutique-front.yaml
+- boutique-api.yaml
+- boutique-worker.yaml
+- boutique-migration.yaml
+- postgres.yaml
+- redis-cache.yaml

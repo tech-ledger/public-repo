@@ -1,0 +1,111 @@
+# boutique-front.yaml : la politique de nv.boutique-front.bq-front, exportée de nv-01 puis relue
+apiVersion: neuvector.com/v1
+kind: NvSecurityRule
+metadata:
+  name: nv.boutique-front.bq-front
+  namespace: bq-front
+spec:
+  dlp:
+    settings: []
+    status: true
+  egress:
+  - action: allow
+    applications:
+    - DNS
+    name: nv.rke2-coredns-rke2-coredns.kube-system-egress-0
+    ports: any
+    priority: 0
+    selector:
+      comment: ""
+      criteria:
+      - key: domain
+        op: =
+        value: kube-system
+      - key: service
+        op: =
+        value: rke2-coredns-rke2-coredns.kube-system
+      name: nv.rke2-coredns-rke2-coredns.kube-system
+      original_name: ""
+  - action: allow
+    applications:
+    - HTTP
+    name: nv.boutique-api.bq-metier-egress-1
+    ports: any
+    priority: 0
+    selector:
+      comment: ""
+      criteria:
+      - key: domain
+        op: =
+        value: bq-metier
+      - key: service
+        op: =
+        value: boutique-api.bq-metier
+      name: nv.boutique-api.bq-metier
+      original_name: ""
+  file: []
+  ingress:
+  - action: allow
+    applications:
+    - HTTP
+    name: nv.boutique-front.bq-front-ingress-0
+    ports: any
+    priority: 0
+    selector:
+      comment: ""
+      name: nodes
+      original_name: ""
+  - action: allow
+    applications:
+    - HTTP
+    name: nv.boutique-front.bq-front-ingress-1
+    ports: any
+    priority: 0
+    selector:
+      comment: ""
+      criteria:
+      - key: domain
+        op: =
+        value: kube-system
+      - key: service
+        op: =
+        value: rke2-traefik.kube-system
+      name: nv.rke2-traefik.kube-system
+      original_name: ""
+  process:
+  - action: allow
+    allow_update: false
+    name: nginx
+    path: /usr/sbin/nginx
+  - action: allow
+    allow_update: false
+    name: pause
+    path: /pause
+  - action: allow
+    allow_update: false
+    name: sh
+    path: /bin/busybox
+  process_profile:
+    baseline: zero-drift
+    mode: Protect
+  response: null
+  target:
+    policymode: Protect
+    selector:
+      comment: ""
+      criteria:
+      - key: domain
+        op: =
+        value: bq-front
+      - key: service
+        op: =
+        value: boutique-front.bq-front
+      grp_band_width: 0
+      grp_sess_cur: 0
+      grp_sess_rate: 0
+      mon_metric: false
+      name: nv.boutique-front.bq-front
+      original_name: ""
+  waf:
+    settings: []
+    status: true

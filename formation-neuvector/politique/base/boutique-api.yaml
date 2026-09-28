@@ -1,0 +1,124 @@
+# boutique-api.yaml : la politique de nv.boutique-api.bq-metier, exportée de nv-01 puis relue
+apiVersion: neuvector.com/v1
+kind: NvSecurityRule
+metadata:
+  name: nv.boutique-api.bq-metier
+  namespace: bq-metier
+spec:
+  dlp:
+    settings: []
+    status: true
+  egress:
+  - action: allow
+    applications:
+    - DNS
+    name: nv.rke2-coredns-rke2-coredns.kube-system-egress-2
+    ports: any
+    priority: 0
+    selector:
+      comment: ""
+      criteria:
+      - key: domain
+        op: =
+        value: kube-system
+      - key: service
+        op: =
+        value: rke2-coredns-rke2-coredns.kube-system
+      name: nv.rke2-coredns-rke2-coredns.kube-system
+      original_name: ""
+  - action: allow
+    applications:
+    - Redis
+    name: nv.redis-cache.bq-donnees-egress-3
+    ports: any
+    priority: 0
+    selector:
+      comment: ""
+      criteria:
+      - key: service
+        op: =
+        value: redis-cache.bq-donnees
+      - key: domain
+        op: =
+        value: bq-donnees
+      name: nv.redis-cache.bq-donnees
+      original_name: ""
+  - action: allow
+    applications:
+    - PostgreSQL
+    name: nv.postgres.bq-donnees-egress-4
+    ports: any
+    priority: 0
+    selector:
+      comment: ""
+      criteria:
+      - key: service
+        op: =
+        value: postgres.bq-donnees
+      - key: domain
+        op: =
+        value: bq-donnees
+      name: nv.postgres.bq-donnees
+      original_name: ""
+  file: []
+  ingress:
+  - action: allow
+    applications:
+    - HTTP
+    name: nv.boutique-api.bq-metier-ingress-2
+    ports: any
+    priority: 0
+    selector:
+      comment: ""
+      name: nodes
+      original_name: ""
+  - action: allow
+    applications:
+    - HTTP
+    name: nv.boutique-api.bq-metier-ingress-3
+    ports: any
+    priority: 0
+    selector:
+      comment: ""
+      criteria:
+      - key: service
+        op: =
+        value: depannage.bq-metier
+      - key: domain
+        op: =
+        value: bq-metier
+      name: nv.depannage.bq-metier
+      original_name: ""
+  process:
+  - action: allow
+    allow_update: false
+    name: api
+    path: /api
+  - action: allow
+    allow_update: false
+    name: pause
+    path: /pause
+  process_profile:
+    baseline: zero-drift
+    mode: Protect
+  response: null
+  target:
+    policymode: Protect
+    selector:
+      comment: ""
+      criteria:
+      - key: domain
+        op: =
+        value: bq-metier
+      - key: service
+        op: =
+        value: boutique-api.bq-metier
+      grp_band_width: 0
+      grp_sess_cur: 0
+      grp_sess_rate: 0
+      mon_metric: false
+      name: nv.boutique-api.bq-metier
+      original_name: ""
+  waf:
+    settings: []
+    status: true

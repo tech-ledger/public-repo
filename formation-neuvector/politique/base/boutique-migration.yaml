@@ -1,0 +1,67 @@
+# boutique-migration.yaml : la politique de nv.boutique-migration.bq-metier, exportée de nv-01 puis relue
+apiVersion: neuvector.com/v1
+kind: NvSecurityRule
+metadata:
+  name: nv.boutique-migration.bq-metier
+  namespace: bq-metier
+spec:
+  dlp:
+    settings: []
+    status: true
+  egress:
+  - action: allow
+    applications:
+    - DNS
+    name: nv.rke2-coredns-rke2-coredns.kube-system-egress-7
+    ports: any
+    priority: 0
+    selector:
+      comment: ""
+      criteria:
+      - key: domain
+        op: =
+        value: kube-system
+      - key: service
+        op: =
+        value: rke2-coredns-rke2-coredns.kube-system
+      name: nv.rke2-coredns-rke2-coredns.kube-system
+      original_name: ""
+  file: []
+  ingress: []
+  process:
+  - action: allow
+    allow_update: false
+    name: pause
+    path: /pause
+  - action: allow
+    allow_update: false
+    name: sh
+    path: /bin/sh
+  - action: allow
+    allow_update: false
+    name: sleep
+    path: /bin/sleep
+  process_profile:
+    baseline: zero-drift
+    mode: Protect
+  response: null
+  target:
+    policymode: Protect
+    selector:
+      comment: ""
+      criteria:
+      - key: service
+        op: =
+        value: boutique-migration.bq-metier
+      - key: domain
+        op: =
+        value: bq-metier
+      grp_band_width: 0
+      grp_sess_cur: 0
+      grp_sess_rate: 0
+      mon_metric: false
+      name: nv.boutique-migration.bq-metier
+      original_name: ""
+  waf:
+    settings: []
+    status: true
