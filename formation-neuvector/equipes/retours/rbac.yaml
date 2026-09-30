@@ -1,0 +1,24 @@
+# Le groupe equipe-retours ecrit les regles NeuVector de son namespace, et rien d'autre
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: regles-neuvector
+  namespace: retours
+rules:
+  - apiGroups: ["neuvector.com"]
+    resources: ["nvsecurityrules"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: equipe-regles-neuvector
+  namespace: retours
+subjects:
+  - kind: Group
+    name: equipe-retours
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: regles-neuvector
