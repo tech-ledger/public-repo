@@ -1,0 +1,31 @@
+# Une application Argo CD par repertoire d'equipe : equipes/<nom> arrive sur nv-01
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: equipes
+  namespace: argocd
+spec:
+  goTemplate: true
+  generators:
+    - git:
+        repoURL: https://github.com/tech-ledger/public-repo.git
+        revision: main
+        directories:
+          - path: formation-neuvector/equipes/*
+  template:
+    metadata:
+      finalizers:
+        - resources-finalizer.argocd.argoproj.io
+      name: 'equipe-{{ .path.basename }}'
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/tech-ledger/public-repo.git
+        targetRevision: main
+        path: '{{ .path.path }}'
+      destination:
+        server: https://kubernetes.default.svc
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
