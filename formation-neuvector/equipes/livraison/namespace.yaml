@@ -1,7 +1,0 @@
-# Le namespace de l'equipe : le label techledger.io/equipe le soumet aux policies de la plateforme
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: livraison
-  labels:
-    techledger.io/equipe: livraison
